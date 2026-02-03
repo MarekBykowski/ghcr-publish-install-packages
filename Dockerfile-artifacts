@@ -1,5 +1,5 @@
 # Dockerfile.template
 FROM scratch
 ARG artifact_file
-LABEL org.opencontainers.image.source=https://github.com/marekbykowski/docker
+LABEL org.opencontainers.image.source=https://github.com/marekbykowski/<repo>
 COPY ${artifact_file} /
