@@ -1,5 +1,13 @@
 #!/bin/bash
 
+repo=cxl_run_qemu
+artifacts_upload_dir=artifacts
+artifacts_download_dir=artifacts-${RANDOM}
+
+
+#artifacts="item1.zip item2.tar.gz item3.qcow"
+artifacts=(*)
+
 GHCR_USER="MarekBykowski"
 GHCR_TOKEN="g\
 hp_FU32\
@@ -15,15 +23,12 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 # Repository name must be lowercase
 GHCR_USER=${GHCR_USER,,}
 
-artifacts="avery_qemu-docker.zip apciexactor-2.5c.cxl.tar.gz aqcxl_sim-2023_1215.tar.gz avery_pli-2023_1128.tar.gz vcsmx.tar.gz core-image-cxl-sdk-cxlx86-64.rootfs.wic.qcow2 verdi.tar.gz"
-
-# Artifacts are assumed to live in ./artifacts directory
-# Each of them will be packed and published seperately
 if [[ $1 == publish ]]; then
-	artifacts_to_push=$artifacts
-	for artifact in ${artifacts_to_push}; do
-		test -f ./artifacts/$artifact || echo "./artifacts/$artifact doesn't exist!"
-		ls ./artifacts/$artifact
+	push $artifacts_upload_dir
+	artifacts_to_push=("${artifacts[@]}")
+	for artifact in ${artifacts_to_push[@]}; do
+		test -f $artifact || echo "$artifact doesn't exist!"
+		ls $artifact
 
 		filename=$(basename "$artifact")
 
@@ -31,7 +36,8 @@ if [[ $1 == publish ]]; then
 
 		# Build Docker image
 		docker build -t ghcr.io/$GHCR_USER/$filename:v1 \
-		--build-arg artifact_file="artifacts/$filename" \
+		--build-arg artifact_file="$filename" \
+		--build-arg repo="$repo" \
 		-f Dockerfile-artifacts .
 
 		echo Let us see the contents of the image
@@ -51,19 +57,20 @@ if [[ $1 == publish ]]; then
 			echo -e "You shall remove it after use\n 'docker rmi $DIM'"
 		fi
 	done
+	popd
 elif [[ $1 == install ]]; then
-	# Artifacts are to be downloaded to artifacts-<number> dir
-	artifacts_to_pull=$artifacts
-	DIR=artifacts-${RANDOM}
+	test -d ./$artifacts_download_dir || mkdir -p ./$artifacts_download_dir
+	push $artifacts_download_dir
 
-	for artifact in ${artifacts_to_pull}; do
+	artifacts_to_pull=("${artifacts[@]}")
+
+	for artifact in ${artifacts_to_pull[@]}; do
 		echo "Creating ./$DIR if doesn't exist"
-		test -d ./$DIR || mkdir -p ./$DIR
 		docker pull ghcr.io/${GHCR_USER}/${artifact}:v1
 		docker create --name tmp ghcr.io/${GHCR_USER}/${artifact}:v1 /bin/bash
 		# see the content
 		docker export tmp | tar -t
-		docker cp tmp:/${artifact} ./$DIR
+		docker cp tmp:/${artifact} ./$artifacts_download_dir
 		docker rm tmp
 	done
 fi
