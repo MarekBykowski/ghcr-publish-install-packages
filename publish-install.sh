@@ -6,7 +6,6 @@ artifacts_download_dir=artifacts-${RANDOM}
 
 
 #artifacts="item1.zip item2.tar.gz item3.qcow"
-artifacts=(*)
 
 GHCR_USER="MarekBykowski"
 GHCR_TOKEN="g\
@@ -24,8 +23,8 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 GHCR_USER=${GHCR_USER,,}
 
 if [[ $1 == publish ]]; then
-	push $artifacts_upload_dir
-	artifacts_to_push=("${artifacts[@]}")
+	pushd $artifacts_upload_dir
+	artifacts_to_push=(*)
 	for artifact in ${artifacts_to_push[@]}; do
 		test -f $artifact || echo "$artifact doesn't exist!"
 		ls $artifact
@@ -38,7 +37,7 @@ if [[ $1 == publish ]]; then
 		docker build -t ghcr.io/$GHCR_USER/$filename:v1 \
 		--build-arg artifact_file="$filename" \
 		--build-arg repo="$repo" \
-		-f Dockerfile-artifacts .
+		-f ../Dockerfile-artifacts .
 
 		echo Let us see the contents of the image
 		docker create --name=temp ghcr.io/$GHCR_USER/$filename:v1 /bin/bash
@@ -60,9 +59,10 @@ if [[ $1 == publish ]]; then
 	popd
 elif [[ $1 == install ]]; then
 	test -d ./$artifacts_download_dir || mkdir -p ./$artifacts_download_dir
-	push $artifacts_download_dir
+	pushd $artifacts_download_dir
 
-	artifacts_to_pull=("${artifacts[@]}")
+	# Artifacts to download can be seen on github. Here have to assume something. 
+	artifacts_to_pull=(artifacts.tar.xz)
 
 	for artifact in ${artifacts_to_pull[@]}; do
 		echo "Creating ./$DIR if doesn't exist"
@@ -70,7 +70,13 @@ elif [[ $1 == install ]]; then
 		docker create --name tmp ghcr.io/${GHCR_USER}/${artifact}:v1 /bin/bash
 		# see the content
 		docker export tmp | tar -t
-		docker cp tmp:/${artifact} ./$artifacts_download_dir
+		docker cp tmp:/${artifact} .
 		docker rm tmp
 	done
+	popd
+else
+	cat <<- EOF
+	$0 <publish> <install>
+	EOF
 fi
+
